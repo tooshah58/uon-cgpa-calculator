@@ -11,8 +11,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PlusCircle, Trash2 } from "lucide-react";
 
-type Book = {
+type Course = {
   id: number;
   name: string;
   credit: number;
@@ -34,43 +35,90 @@ const gradePoints: Record<string, number> = {
 
 const SemesterGPACalculator = () => {
   const { toast } = useToast();
-  const [books, setBooks] = useState<Book[]>([
-    { id: 1, name: "Book 1", credit: 3, grade: "", gradePoints: 0 },
-    { id: 2, name: "Book 2", credit: 3, grade: "", gradePoints: 0 },
-    { id: 3, name: "Book 3", credit: 3, grade: "", gradePoints: 0 },
-    { id: 4, name: "Book 4", credit: 3, grade: "", gradePoints: 0 },
-    { id: 5, name: "Book 5", credit: 3, grade: "", gradePoints: 0 },
-    { id: 6, name: "Book 6", credit: 3, grade: "", gradePoints: 0 },
+  const [courses, setCourses] = useState<Course[]>([
+    { id: 1, name: "Course 1", credit: 3, grade: "", gradePoints: 0 },
+    { id: 2, name: "Course 2", credit: 3, grade: "", gradePoints: 0 },
+    { id: 3, name: "Course 3", credit: 3, grade: "", gradePoints: 0 },
+    { id: 4, name: "Course 4", credit: 3, grade: "", gradePoints: 0 },
+    { id: 5, name: "Course 5", credit: 3, grade: "", gradePoints: 0 },
+    { id: 6, name: "Course 6", credit: 3, grade: "", gradePoints: 0 },
   ]);
   
   const [gpa, setGpa] = useState<number | null>(null);
+  const [nextId, setNextId] = useState(7); // Track the next available ID
 
   const handleGradeChange = (id: number, grade: string) => {
-    setBooks(prevBooks => 
-      prevBooks.map(book => 
-        book.id === id 
-          ? { ...book, grade, gradePoints: gradePoints[grade] } 
-          : book
+    setCourses(prevCourses => 
+      prevCourses.map(course => 
+        course.id === id 
+          ? { ...course, grade, gradePoints: gradePoints[grade] } 
+          : course
       )
     );
   };
 
+  const handleCreditChange = (id: number, credit: string) => {
+    setCourses(prevCourses => 
+      prevCourses.map(course => 
+        course.id === id 
+          ? { ...course, credit: parseInt(credit) } 
+          : course
+      )
+    );
+  };
+
+  const addCourse = () => {
+    const newCourse = { 
+      id: nextId, 
+      name: `Course ${nextId}`, 
+      credit: 3, 
+      grade: "", 
+      gradePoints: 0 
+    };
+    setCourses([...courses, newCourse]);
+    setNextId(nextId + 1);
+    
+    toast({
+      title: "Course Added",
+      description: "A new course has been added to the calculator.",
+    });
+  };
+
+  const removeCourse = (id: number) => {
+    // Prevent removing if only one course left
+    if (courses.length <= 1) {
+      toast({
+        title: "Cannot Remove",
+        description: "You need at least one course in the calculator.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setCourses(courses.filter(course => course.id !== id));
+    
+    toast({
+      title: "Course Removed",
+      description: "The course has been removed from the calculator.",
+    });
+  };
+
   const calculateGPA = () => {
-    // Check if all books have grades
-    const allGradesEntered = books.every(book => book.grade);
+    // Check if all courses have grades
+    const allGradesEntered = courses.every(course => course.grade);
     
     if (!allGradesEntered) {
       toast({
         title: "Missing Grades",
-        description: "Please enter grades for all books.",
+        description: "Please enter grades for all courses.",
         variant: "destructive",
       });
       return;
     }
 
     // Calculate GPA: sum of (credit * grade points) / total credits
-    const totalCredits = books.reduce((sum, book) => sum + book.credit, 0);
-    const weightedGradePoints = books.reduce((sum, book) => sum + (book.credit * book.gradePoints), 0);
+    const totalCredits = courses.reduce((sum, course) => sum + course.credit, 0);
+    const weightedGradePoints = courses.reduce((sum, course) => sum + (course.credit * course.gradePoints), 0);
     const calculatedGPA = weightedGradePoints / totalCredits;
     
     setGpa(calculatedGPA);
@@ -82,7 +130,7 @@ const SemesterGPACalculator = () => {
   };
 
   const resetCalculator = () => {
-    setBooks(books.map(book => ({ ...book, grade: "", gradePoints: 0 })));
+    setCourses(courses.map(course => ({ ...course, grade: "", gradePoints: 0 })));
     setGpa(null);
   };
 
@@ -90,27 +138,43 @@ const SemesterGPACalculator = () => {
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="text-xl text-blue-700">Semester GPA Calculator</CardTitle>
-        <CardDescription>Enter the grade for each of your six books to calculate your semester GPA</CardDescription>
+        <CardDescription>Enter the grade for each of your courses to calculate your semester GPA</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Book</TableHead>
+                <TableHead>Course</TableHead>
                 <TableHead>Credit Hours</TableHead>
                 <TableHead>Grade</TableHead>
+                <TableHead className="w-[80px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {books.map((book) => (
-                <TableRow key={book.id}>
-                  <TableCell className="font-medium">{book.name}</TableCell>
-                  <TableCell>{book.credit}</TableCell>
+              {courses.map((course) => (
+                <TableRow key={course.id}>
+                  <TableCell className="font-medium">{course.name}</TableCell>
                   <TableCell>
                     <Select
-                      value={book.grade}
-                      onValueChange={(value) => handleGradeChange(book.id, value)}
+                      value={course.credit.toString()}
+                      onValueChange={(value) => handleCreditChange(course.id, value)}
+                    >
+                      <SelectTrigger className="w-[80px]">
+                        <SelectValue placeholder="Credit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="3">3</SelectItem>
+                        <SelectItem value="4">4</SelectItem>
+                        <SelectItem value="6">6</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={course.grade}
+                      onValueChange={(value) => handleGradeChange(course.id, value)}
                     >
                       <SelectTrigger className="w-[120px]">
                         <SelectValue placeholder="Select" />
@@ -128,13 +192,23 @@ const SemesterGPACalculator = () => {
                       </SelectContent>
                     </Select>
                   </TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => removeCourse(course.id)}
+                      className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Button 
             onClick={calculateGPA} 
             className="bg-blue-600 hover:bg-blue-700"
@@ -147,6 +221,14 @@ const SemesterGPACalculator = () => {
           >
             Reset
           </Button>
+          <Button 
+            onClick={addCourse}
+            variant="outline"
+            className="ml-auto flex gap-1 text-green-600 border-green-200 hover:bg-green-50"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Add Course
+          </Button>
         </div>
         
         {gpa !== null && (
@@ -154,7 +236,7 @@ const SemesterGPACalculator = () => {
             <h3 className="text-lg font-semibold text-blue-800 mb-1">Your Semester GPA</h3>
             <p className="text-3xl font-bold text-blue-700">{gpa.toFixed(2)}</p>
             <p className="text-sm text-blue-600 mt-1">
-              Based on the grades you entered for all six books.
+              Based on the grades you entered for all your courses.
             </p>
           </div>
         )}
