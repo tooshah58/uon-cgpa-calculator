@@ -1,5 +1,5 @@
 
-import GradeCalculator from "@/components/GradeCalculator";
+import SemesterGPACalculator from "@/components/SemesterGPACalculator";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
@@ -8,7 +8,7 @@ const Index = () => {
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
-        <GradeCalculator />
+        <SemesterGPACalculator />
       </main>
       <Footer />
     </div>
