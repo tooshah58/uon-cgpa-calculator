@@ -101,14 +101,13 @@ const SemesterGPACalculator = () => {
     setCourses(prevCourses =>
       prevCourses.map(course => {
         if (course.id === id) {
-          // Only allow improvement for D and F grades
-          if (!course.isImproved && (course.grade === "D" || course.grade === "F")) {
+          if (!course.isImproved) {
             return { 
               ...course, 
               isImproved: true, 
-              previousGrade: course.grade  // Automatically set previous grade to current grade
+              previousGrade: course.previousGrade || "D" // Default to D for improvement
             };
-          } else if (course.isImproved) {
+          } else {
             // Turn off improvement
             return { 
               ...course, 
@@ -123,7 +122,8 @@ const SemesterGPACalculator = () => {
   };
 
   const isImprovementAllowed = (grade: string) => {
-    return grade === "D" || grade === "F";
+    // We now allow improvement for any grade
+    return grade !== "" && grade !== "none";
   };
 
   const addCourse = () => {
@@ -319,17 +319,37 @@ const SemesterGPACalculator = () => {
               </div>
             </div>
             
-            {(course.grade === "D" || course.grade === "F") && (
+            {isImprovementAllowed(course.grade) && (
               <div className="mt-3">
-                <Button 
-                  variant={course.isImproved ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => toggleImproved(course.id)}
-                  className={`w-full flex justify-center gap-1 ${course.isImproved ? 'bg-green-700 hover:bg-green-800' : 'text-green-700 border-green-300 hover:bg-green-50'}`}
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  {course.isImproved ? "Remove Improvement" : "Improve this course"}
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button 
+                    variant={course.isImproved ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleImproved(course.id)}
+                    className={`w-full flex justify-center gap-1 ${course.isImproved ? 'bg-green-700 hover:bg-green-800' : 'text-green-700 border-green-300 hover:bg-green-50'}`}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    {course.isImproved ? "Remove Improvement" : "Improve/Repeat Course"}
+                  </Button>
+                  
+                  {course.isImproved && (
+                    <div className="mt-2">
+                      <Label className="text-sm text-green-700">Previous Grade</Label>
+                      <Select
+                        value={course.previousGrade}
+                        onValueChange={(value) => handlePreviousGradeChange(course.id, value)}
+                      >
+                        <SelectTrigger className="w-full border-green-300 mt-1">
+                          <SelectValue placeholder="Select previous grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="D">D (Improve)</SelectItem>
+                          <SelectItem value="F">F (Repeat)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -442,18 +462,35 @@ const SemesterGPACalculator = () => {
                     <TableCell>
                       <div className="flex items-center space-x-2">
                         {isImprovementAllowed(course.grade) ? (
-                          <Button 
-                            variant={course.isImproved ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => toggleImproved(course.id)}
-                            className={`flex gap-1 ${course.isImproved ? 'bg-green-700 hover:bg-green-800' : 'text-green-700 border-green-300 hover:bg-green-50'}`}
-                          >
-                            <RefreshCw className="h-3 w-3" />
-                            {course.isImproved ? "Remove" : "Improve"}
-                          </Button>
+                          <div className="flex flex-col gap-2 w-full">
+                            <Button 
+                              variant={course.isImproved ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => toggleImproved(course.id)}
+                              className={`flex gap-1 ${course.isImproved ? 'bg-green-700 hover:bg-green-800' : 'text-green-700 border-green-300 hover:bg-green-50'}`}
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              {course.isImproved ? "Remove" : "Improve/Repeat"}
+                            </Button>
+                            
+                            {course.isImproved && (
+                              <Select
+                                value={course.previousGrade}
+                                onValueChange={(value) => handlePreviousGradeChange(course.id, value)}
+                              >
+                                <SelectTrigger className="w-full border-green-300 mt-1">
+                                  <SelectValue placeholder="Previous grade" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="D">D (Improve)</SelectItem>
+                                  <SelectItem value="F">F (Repeat)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-sm text-gray-500 italic">
-                            {course.grade ? "Not eligible" : "Select grade first"}
+                            {course.grade ? "Select grade first" : "Select grade first"}
                           </span>
                         )}
                       </div>
