@@ -3,12 +3,12 @@ import { BookOpen } from "lucide-react";
 
 const Header = () => {
   return (
-    <header className="bg-white shadow-sm">
+    <header className="bg-green-800 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center">
-        <BookOpen className="h-8 w-8 text-blue-600 mr-3" />
+        <BookOpen className="h-8 w-8 text-white mr-3" />
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Grade Calculator</h1>
-          <p className="text-sm text-gray-600">University of Narowal</p>
+          <h1 className="text-2xl font-bold text-white">Grade Calculator University of Narowal</h1>
+          <p className="text-sm text-green-100">GPA & CGPA Calculator</p>
         </div>
       </div>
     </header>
