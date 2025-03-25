@@ -312,7 +312,7 @@ const SemesterGPACalculator = () => {
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         <SelectItem value="A+">A+</SelectItem>
                         <SelectItem value="A">A</SelectItem>
                         <SelectItem value="B+">B+</SelectItem>
