@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { PlusCircle, Trash2, Calculator } from "lucide-react";
+import { PlusCircle, Trash2, Calculator, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -21,6 +21,8 @@ type Course = {
   credit: number;
   grade: string;
   gradePoints: number;
+  isImproved: boolean;
+  previousGrade: string;
 };
 
 const gradePoints: Record<string, number> = {
@@ -38,22 +40,22 @@ const gradePoints: Record<string, number> = {
 const SemesterGPACalculator = () => {
   const { toast } = useToast();
   const [courses, setCourses] = useState<Course[]>([
-    { id: 1, name: "Course 1", credit: 3, grade: "", gradePoints: 0 },
-    { id: 2, name: "Course 2", credit: 3, grade: "", gradePoints: 0 },
-    { id: 3, name: "Course 3", credit: 3, grade: "", gradePoints: 0 },
-    { id: 4, name: "Course 4", credit: 3, grade: "", gradePoints: 0 },
-    { id: 5, name: "Course 5", credit: 3, grade: "", gradePoints: 0 },
-    { id: 6, name: "Course 6", credit: 3, grade: "", gradePoints: 0 },
+    { id: 1, name: "Course 1", credit: 3, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" },
+    { id: 2, name: "Course 2", credit: 3, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" },
+    { id: 3, name: "Course 3", credit: 3, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" },
+    { id: 4, name: "Course 4", credit: 3, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" },
+    { id: 5, name: "Course 5", credit: 3, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" },
+    { id: 6, name: "Course 6", credit: 3, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" },
   ]);
   
   const [gpa, setGpa] = useState<number | null>(null);
   const [nextId, setNextId] = useState(7); // Track the next available ID
   
-  // New state for CGPA calculation
+  // State for CGPA calculation - show it by default
   const [previousCGPA, setPreviousCGPA] = useState<string>("");
   const [previousCreditHours, setPreviousCreditHours] = useState<string>("");
   const [cgpa, setCgpa] = useState<number | null>(null);
-  const [showCGPASection, setShowCGPASection] = useState<boolean>(false);
+  const [showCGPASection, setShowCGPASection] = useState<boolean>(true);
 
   const handleGradeChange = (id: number, grade: string) => {
     setCourses(prevCourses => 
@@ -75,13 +77,35 @@ const SemesterGPACalculator = () => {
     );
   };
 
+  const handlePreviousGradeChange = (id: number, grade: string) => {
+    setCourses(prevCourses =>
+      prevCourses.map(course =>
+        course.id === id
+          ? { ...course, previousGrade: grade }
+          : course
+      )
+    );
+  };
+
+  const toggleImproved = (id: number) => {
+    setCourses(prevCourses =>
+      prevCourses.map(course =>
+        course.id === id
+          ? { ...course, isImproved: !course.isImproved, previousGrade: !course.isImproved ? "" : course.previousGrade }
+          : course
+      )
+    );
+  };
+
   const addCourse = () => {
     const newCourse = { 
       id: nextId, 
       name: `Course ${nextId}`, 
       credit: 3, 
       grade: "", 
-      gradePoints: 0 
+      gradePoints: 0,
+      isImproved: false,
+      previousGrade: ""
     };
     setCourses([...courses, newCourse]);
     setNextId(nextId + 1);
@@ -119,6 +143,20 @@ const SemesterGPACalculator = () => {
       toast({
         title: "Missing Grades",
         description: "Please enter grades for all courses.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if improved courses have previous grades
+    const allImprovedCoursesHavePreviousGrades = courses
+      .filter(course => course.isImproved)
+      .every(course => course.previousGrade);
+    
+    if (!allImprovedCoursesHavePreviousGrades) {
+      toast({
+        title: "Missing Previous Grades",
+        description: "Please enter previous grades for all improved courses.",
         variant: "destructive",
       });
       return;
@@ -164,8 +202,27 @@ const SemesterGPACalculator = () => {
     // Get current semester credits
     const currentCredits = courses.reduce((sum, course) => sum + course.credit, 0);
     
-    // Calculate CGPA: (prevCGPA * prevCredits + semesterGPA * semesterCredits) / (prevCredits + semesterCredits)
-    const calculatedCGPA = ((prevCGPA * prevCredits) + (gpa * currentCredits)) / (prevCredits + currentCredits);
+    // Calculate CGPA based on improved courses
+    let adjustedPrevCGPA = prevCGPA;
+    
+    // If there are improved courses, adjust the previous CGPA
+    const improvedCourses = courses.filter(course => course.isImproved && course.previousGrade);
+    
+    if (improvedCourses.length > 0) {
+      // Calculate the impact of improved courses on previous CGPA
+      const improvedCredits = improvedCourses.reduce((sum, course) => sum + course.credit, 0);
+      const improvementEffect = improvedCourses.reduce((sum, course) => {
+        const prevPoints = gradePoints[course.previousGrade] || 0;
+        const newPoints = course.gradePoints;
+        return sum + ((newPoints - prevPoints) * course.credit);
+      }, 0);
+      
+      // Adjust previous CGPA based on improved courses
+      adjustedPrevCGPA = ((prevCGPA * prevCredits) + improvementEffect) / prevCredits;
+    }
+    
+    // Calculate CGPA with the adjusted values
+    const calculatedCGPA = ((adjustedPrevCGPA * prevCredits) + (gpa * currentCredits)) / (prevCredits + currentCredits);
     
     setCgpa(calculatedCGPA);
     
@@ -176,7 +233,7 @@ const SemesterGPACalculator = () => {
   };
 
   const resetCalculator = () => {
-    setCourses(courses.map(course => ({ ...course, grade: "", gradePoints: 0 })));
+    setCourses(courses.map(course => ({ ...course, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" })));
     setGpa(null);
     setCgpa(null);
     setPreviousCGPA("");
@@ -194,6 +251,61 @@ const SemesterGPACalculator = () => {
         <CardDescription>Enter the grade for each of your courses to calculate your semester GPA</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* CGPA Calculator Section - Shown by default */}
+        <div className="p-5 border border-blue-200 rounded-lg bg-blue-50">
+          <h3 className="text-lg font-semibold text-blue-800 mb-3">Cumulative GPA Calculator</h3>
+          <p className="text-sm text-blue-600 mb-4">
+            Enter your previous CGPA and total credit hours to calculate your new CGPA
+          </p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="space-y-2">
+              <Label htmlFor="previousCGPA">Previous CGPA</Label>
+              <Input
+                id="previousCGPA"
+                type="number"
+                step="0.01"
+                min="0"
+                max="4"
+                placeholder="e.g. 3.5"
+                value={previousCGPA}
+                onChange={(e) => setPreviousCGPA(e.target.value)}
+                className="max-w-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="previousCredits">Total Credit Hours Completed</Label>
+              <Input
+                id="previousCredits"
+                type="number"
+                min="0"
+                placeholder="e.g. 60"
+                value={previousCreditHours}
+                onChange={(e) => setPreviousCreditHours(e.target.value)}
+                className="max-w-xs"
+              />
+            </div>
+          </div>
+          
+          <Button 
+            onClick={calculateCGPA}
+            className="bg-blue-600 hover:bg-blue-700 mt-2"
+          >
+            <Calculator className="mr-2 h-4 w-4" />
+            Calculate CGPA
+          </Button>
+          
+          {cgpa !== null && (
+            <div className="mt-4 p-4 bg-blue-100 border border-blue-200 rounded-md">
+              <h4 className="text-lg font-semibold text-blue-800 mb-1">Your New CGPA</h4>
+              <p className="text-3xl font-bold text-blue-700">{cgpa.toFixed(2)}</p>
+              <p className="text-sm text-blue-600 mt-1">
+                This includes your current semester performance.
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -201,6 +313,7 @@ const SemesterGPACalculator = () => {
                 <TableHead>Course</TableHead>
                 <TableHead>Credit Hours</TableHead>
                 <TableHead>Grade</TableHead>
+                <TableHead>Repeat/Improve</TableHead>
                 <TableHead className="w-[80px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -244,6 +357,40 @@ const SemesterGPACalculator = () => {
                         <SelectItem value="F">F</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        variant={course.isImproved ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleImproved(course.id)}
+                        className={`flex gap-1 ${course.isImproved ? 'bg-green-600 hover:bg-green-700' : 'text-green-600 hover:bg-green-50'}`}
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        {course.isImproved ? "Improved" : "Improve"}
+                      </Button>
+                      {course.isImproved && (
+                        <Select
+                          value={course.previousGrade}
+                          onValueChange={(value) => handlePreviousGradeChange(course.id, value)}
+                        >
+                          <SelectTrigger className="w-[80px]">
+                            <SelectValue placeholder="Previous" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="A+">A+</SelectItem>
+                            <SelectItem value="A">A</SelectItem>
+                            <SelectItem value="B+">B+</SelectItem>
+                            <SelectItem value="B">B</SelectItem>
+                            <SelectItem value="B-">B-</SelectItem>
+                            <SelectItem value="C+">C+</SelectItem>
+                            <SelectItem value="C">C</SelectItem>
+                            <SelectItem value="D">D</SelectItem>
+                            <SelectItem value="F">F</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Button 
@@ -299,63 +446,6 @@ const SemesterGPACalculator = () => {
             <p className="text-sm text-blue-600 mt-1">
               Based on the grades you entered for all your courses.
             </p>
-          </div>
-        )}
-
-        {/* CGPA Calculator Section */}
-        {showCGPASection && (
-          <div className="mt-6 p-5 border border-blue-200 rounded-lg bg-blue-50">
-            <h3 className="text-lg font-semibold text-blue-800 mb-3">Cumulative GPA Calculator</h3>
-            <p className="text-sm text-blue-600 mb-4">
-              Enter your previous CGPA and total credit hours to calculate your new CGPA
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="space-y-2">
-                <Label htmlFor="previousCGPA">Previous CGPA</Label>
-                <Input
-                  id="previousCGPA"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="4"
-                  placeholder="e.g. 3.5"
-                  value={previousCGPA}
-                  onChange={(e) => setPreviousCGPA(e.target.value)}
-                  className="max-w-xs"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="previousCredits">Total Credit Hours Completed</Label>
-                <Input
-                  id="previousCredits"
-                  type="number"
-                  min="0"
-                  placeholder="e.g. 60"
-                  value={previousCreditHours}
-                  onChange={(e) => setPreviousCreditHours(e.target.value)}
-                  className="max-w-xs"
-                />
-              </div>
-            </div>
-            
-            <Button 
-              onClick={calculateCGPA}
-              className="bg-blue-600 hover:bg-blue-700 mt-2"
-            >
-              <Calculator className="mr-2 h-4 w-4" />
-              Calculate CGPA
-            </Button>
-            
-            {cgpa !== null && (
-              <div className="mt-4 p-4 bg-blue-100 border border-blue-200 rounded-md">
-                <h4 className="text-lg font-semibold text-blue-800 mb-1">Your New CGPA</h4>
-                <p className="text-3xl font-bold text-blue-700">{cgpa.toFixed(2)}</p>
-                <p className="text-sm text-blue-600 mt-1">
-                  This includes your current semester performance.
-                </p>
-              </div>
-            )}
           </div>
         )}
       </CardContent>
