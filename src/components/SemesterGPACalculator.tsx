@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PlusCircle, Trash2, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type Course = {
   id: number;
@@ -39,6 +40,7 @@ const gradePoints: Record<string, number> = {
 
 const SemesterGPACalculator = () => {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [courses, setCourses] = useState<Course[]>([
     { id: 1, name: "Course 1", credit: 3, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" },
     { id: 2, name: "Course 2", credit: 3, grade: "", gradePoints: 0, isImproved: false, previousGrade: "" },
@@ -59,11 +61,19 @@ const SemesterGPACalculator = () => {
 
   const handleGradeChange = (id: number, grade: string) => {
     setCourses(prevCourses => 
-      prevCourses.map(course => 
-        course.id === id 
-          ? { ...course, grade, gradePoints: gradePoints[grade] } 
-          : course
-      )
+      prevCourses.map(course => {
+        if (course.id === id) {
+          // Reset improvement if changing grade
+          return { 
+            ...course, 
+            grade, 
+            gradePoints: grade === "none" ? 0 : gradePoints[grade],
+            isImproved: false,
+            previousGrade: ""
+          };
+        }
+        return course;
+      })
     );
   };
 
@@ -89,12 +99,31 @@ const SemesterGPACalculator = () => {
 
   const toggleImproved = (id: number) => {
     setCourses(prevCourses =>
-      prevCourses.map(course =>
-        course.id === id
-          ? { ...course, isImproved: !course.isImproved, previousGrade: !course.isImproved ? "" : course.previousGrade }
-          : course
-      )
+      prevCourses.map(course => {
+        if (course.id === id) {
+          // Only allow improvement for D and F grades
+          if (!course.isImproved && (course.grade === "D" || course.grade === "F")) {
+            return { 
+              ...course, 
+              isImproved: true, 
+              previousGrade: course.grade  // Automatically set previous grade to current grade
+            };
+          } else if (course.isImproved) {
+            // Turn off improvement
+            return { 
+              ...course, 
+              isImproved: false, 
+              previousGrade: "" 
+            };
+          }
+        }
+        return course;
+      })
     );
+  };
+
+  const isImprovementAllowed = (grade: string) => {
+    return grade === "D" || grade === "F";
   };
 
   const addCourse = () => {
@@ -149,7 +178,7 @@ const SemesterGPACalculator = () => {
 
   const calculateGPA = () => {
     // Filter out courses with no grades (they don't count)
-    const validCourses = courses.filter(course => course.grade !== "");
+    const validCourses = courses.filter(course => course.grade !== "" && course.grade !== "none");
     
     if (validCourses.length === 0) {
       setGpa(null);
@@ -186,7 +215,7 @@ const SemesterGPACalculator = () => {
     const prevCredits = parseFloat(previousCreditHours);
     
     // Get current semester credits (only for courses with grades)
-    const validCourses = courses.filter(course => course.grade !== "");
+    const validCourses = courses.filter(course => course.grade !== "" && course.grade !== "none");
     const currentCredits = validCourses.reduce((sum, course) => sum + course.credit, 0);
     
     // If no valid courses with grades, return
@@ -226,6 +255,87 @@ const SemesterGPACalculator = () => {
     setCgpa(null);
     setPreviousCGPA("");
     setPreviousCreditHours("");
+  };
+
+  // Mobile view version of the course table
+  const renderMobileCourseView = () => {
+    return (
+      <div className="space-y-4">
+        {courses.map((course) => (
+          <div key={course.id} className="p-4 bg-white border border-green-200 rounded-lg shadow-sm">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-medium">{course.name}</h3>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => removeCourse(course.id)}
+                className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm text-green-700">Credit Hours</Label>
+                <Select
+                  value={course.credit.toString()}
+                  onValueChange={(value) => handleCreditChange(course.id, value)}
+                >
+                  <SelectTrigger className="w-full border-green-300 mt-1">
+                    <SelectValue placeholder="Credit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2</SelectItem>
+                    <SelectItem value="3">3</SelectItem>
+                    <SelectItem value="4">4</SelectItem>
+                    <SelectItem value="6">6</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label className="text-sm text-green-700">Grade</Label>
+                <Select
+                  value={course.grade}
+                  onValueChange={(value) => handleGradeChange(course.id, value)}
+                >
+                  <SelectTrigger className="w-full border-green-300 mt-1">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="A+">A+</SelectItem>
+                    <SelectItem value="A">A</SelectItem>
+                    <SelectItem value="B+">B+</SelectItem>
+                    <SelectItem value="B">B</SelectItem>
+                    <SelectItem value="B-">B-</SelectItem>
+                    <SelectItem value="C+">C+</SelectItem>
+                    <SelectItem value="C">C</SelectItem>
+                    <SelectItem value="D">D</SelectItem>
+                    <SelectItem value="F">F</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {(course.grade === "D" || course.grade === "F") && (
+              <div className="mt-3">
+                <Button 
+                  variant={course.isImproved ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => toggleImproved(course.id)}
+                  className={`w-full flex justify-center gap-1 ${course.isImproved ? 'bg-green-700 hover:bg-green-800' : 'text-green-700 border-green-300 hover:bg-green-50'}`}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  {course.isImproved ? "Remove Improvement" : "Improve this course"}
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -272,109 +382,98 @@ const SemesterGPACalculator = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-green-100">
-              <TableRow>
-                <TableHead className="text-green-800">Course</TableHead>
-                <TableHead className="text-green-800">Credit Hours</TableHead>
-                <TableHead className="text-green-800">Grade</TableHead>
-                <TableHead className="text-green-800">Repeat/Improve</TableHead>
-                <TableHead className="w-[80px] text-green-800">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {courses.map((course) => (
-                <TableRow key={course.id} className="border-b border-green-100">
-                  <TableCell className="font-medium">{course.name}</TableCell>
-                  <TableCell>
-                    <Select
-                      value={course.credit.toString()}
-                      onValueChange={(value) => handleCreditChange(course.id, value)}
-                    >
-                      <SelectTrigger className="w-[80px] border-green-300">
-                        <SelectValue placeholder="Credit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="2">2</SelectItem>
-                        <SelectItem value="3">3</SelectItem>
-                        <SelectItem value="4">4</SelectItem>
-                        <SelectItem value="6">6</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={course.grade}
-                      onValueChange={(value) => handleGradeChange(course.id, value)}
-                    >
-                      <SelectTrigger className="w-[120px] border-green-300">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        <SelectItem value="A+">A+</SelectItem>
-                        <SelectItem value="A">A</SelectItem>
-                        <SelectItem value="B+">B+</SelectItem>
-                        <SelectItem value="B">B</SelectItem>
-                        <SelectItem value="B-">B-</SelectItem>
-                        <SelectItem value="C+">C+</SelectItem>
-                        <SelectItem value="C">C</SelectItem>
-                        <SelectItem value="D">D</SelectItem>
-                        <SelectItem value="F">F</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button 
-                        variant={course.isImproved ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleImproved(course.id)}
-                        className={`flex gap-1 ${course.isImproved ? 'bg-green-700 hover:bg-green-800' : 'text-green-700 border-green-300 hover:bg-green-50'}`}
-                        disabled={!course.grade}
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                        {course.isImproved ? "Improved" : "Improve"}
-                      </Button>
-                      {course.isImproved && (
-                        <Select
-                          value={course.previousGrade}
-                          onValueChange={(value) => handlePreviousGradeChange(course.id, value)}
-                        >
-                          <SelectTrigger className="w-[80px] border-green-300">
-                            <SelectValue placeholder="Previous" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="A+">A+</SelectItem>
-                            <SelectItem value="A">A</SelectItem>
-                            <SelectItem value="B+">B+</SelectItem>
-                            <SelectItem value="B">B</SelectItem>
-                            <SelectItem value="B-">B-</SelectItem>
-                            <SelectItem value="C+">C+</SelectItem>
-                            <SelectItem value="C">C</SelectItem>
-                            <SelectItem value="D">D</SelectItem>
-                            <SelectItem value="F">F</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => removeCourse(course.id)}
-                      className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+        {/* Mobile or Desktop view based on screen size */}
+        {isMobile ? (
+          renderMobileCourseView()
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-green-100">
+                <TableRow>
+                  <TableHead className="text-green-800">Course</TableHead>
+                  <TableHead className="text-green-800">Credit Hours</TableHead>
+                  <TableHead className="text-green-800">Grade</TableHead>
+                  <TableHead className="text-green-800">Repeat/Improve</TableHead>
+                  <TableHead className="w-[80px] text-green-800">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {courses.map((course) => (
+                  <TableRow key={course.id} className="border-b border-green-100">
+                    <TableCell className="font-medium">{course.name}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={course.credit.toString()}
+                        onValueChange={(value) => handleCreditChange(course.id, value)}
+                      >
+                        <SelectTrigger className="w-[80px] border-green-300">
+                          <SelectValue placeholder="Credit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="2">2</SelectItem>
+                          <SelectItem value="3">3</SelectItem>
+                          <SelectItem value="4">4</SelectItem>
+                          <SelectItem value="6">6</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={course.grade}
+                        onValueChange={(value) => handleGradeChange(course.id, value)}
+                      >
+                        <SelectTrigger className="w-[120px] border-green-300">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          <SelectItem value="A+">A+</SelectItem>
+                          <SelectItem value="A">A</SelectItem>
+                          <SelectItem value="B+">B+</SelectItem>
+                          <SelectItem value="B">B</SelectItem>
+                          <SelectItem value="B-">B-</SelectItem>
+                          <SelectItem value="C+">C+</SelectItem>
+                          <SelectItem value="C">C</SelectItem>
+                          <SelectItem value="D">D</SelectItem>
+                          <SelectItem value="F">F</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        {isImprovementAllowed(course.grade) ? (
+                          <Button 
+                            variant={course.isImproved ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => toggleImproved(course.id)}
+                            className={`flex gap-1 ${course.isImproved ? 'bg-green-700 hover:bg-green-800' : 'text-green-700 border-green-300 hover:bg-green-50'}`}
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            {course.isImproved ? "Remove" : "Improve"}
+                          </Button>
+                        ) : (
+                          <span className="text-sm text-gray-500 italic">
+                            {course.grade ? "Not eligible" : "Select grade first"}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => removeCourse(course.id)}
+                        className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
         
         <div className="flex flex-wrap gap-3">
           <Button 
