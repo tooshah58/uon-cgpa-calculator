@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,13 +62,10 @@ const SemesterGPACalculator = () => {
     setCourses(prevCourses => 
       prevCourses.map(course => {
         if (course.id === id) {
-          // Reset improvement if changing grade
           return { 
             ...course, 
             grade, 
             gradePoints: grade === "none" ? 0 : gradePoints[grade],
-            isImproved: false,
-            previousGrade: ""
           };
         }
         return course;
@@ -122,7 +118,7 @@ const SemesterGPACalculator = () => {
   };
 
   const isImprovementAllowed = (grade: string) => {
-    // We now allow improvement for any grade
+    // We allow improvement for any grade
     return grade !== "" && grade !== "none";
   };
 
@@ -173,8 +169,10 @@ const SemesterGPACalculator = () => {
   useEffect(() => {
     if (gpa !== null && previousCGPA && previousCreditHours) {
       calculateCGPA();
+    } else {
+      setCgpa(null);
     }
-  }, [gpa, previousCGPA, previousCreditHours]);
+  }, [gpa, previousCGPA, previousCreditHours, courses]);
 
   const calculateGPA = () => {
     // Filter out courses with no grades (they don't count)
@@ -224,29 +222,47 @@ const SemesterGPACalculator = () => {
       return;
     }
     
-    // Calculate CGPA based on improved courses
-    let adjustedPrevCGPA = prevCGPA;
-    
-    // If there are improved courses, adjust the previous CGPA
+    // Get all improved courses with their credits and grade impact
     const improvedCourses = validCourses.filter(course => course.isImproved && course.previousGrade);
     
+    // Calculate CGPA accounting for improved courses
     if (improvedCourses.length > 0) {
-      // Calculate the impact of improved courses on previous CGPA
-      const improvedCredits = improvedCourses.reduce((sum, course) => sum + course.credit, 0);
-      const improvementEffect = improvedCourses.reduce((sum, course) => {
-        const prevPoints = gradePoints[course.previousGrade] || 0;
-        const newPoints = course.gradePoints;
-        return sum + ((newPoints - prevPoints) * course.credit);
-      }, 0);
+      // For improved courses, we need to:
+      // 1. Calculate the difference between new and old grade points
+      // 2. Multiply by credits to get total grade point change
+      // 3. Add this to the previous total quality points (prevCGPA * prevCredits)
       
-      // Adjust previous CGPA based on improved courses
-      adjustedPrevCGPA = ((prevCGPA * prevCredits) + improvementEffect) / prevCredits;
+      let totalQualityPoints = prevCGPA * prevCredits;
+      
+      // For each improved course, adjust the quality points
+      improvedCourses.forEach(course => {
+        const oldPoints = gradePoints[course.previousGrade] || 0;
+        const newPoints = course.gradePoints;
+        const pointsDifference = newPoints - oldPoints;
+        
+        // Add the improvement to total quality points
+        totalQualityPoints += (pointsDifference * course.credit);
+      });
+      
+      // Calculate current semester contribution (excluding improved courses)
+      const regularCourses = validCourses.filter(course => !course.isImproved);
+      const regularCredits = regularCourses.reduce((sum, course) => sum + course.credit, 0);
+      const regularPoints = regularCourses.reduce((sum, course) => sum + (course.credit * course.gradePoints), 0);
+      
+      // Add regular course points to total quality points
+      totalQualityPoints += regularPoints;
+      
+      // Calculate final CGPA
+      // Note: we don't add improved course credits again since they're already counted in prevCredits
+      const totalCredits = prevCredits + regularCredits;
+      
+      const calculatedCGPA = totalQualityPoints / totalCredits;
+      setCgpa(calculatedCGPA);
+    } else {
+      // No improved courses, use standard calculation
+      const calculatedCGPA = ((prevCGPA * prevCredits) + (gpa * currentCredits)) / (prevCredits + currentCredits);
+      setCgpa(calculatedCGPA);
     }
-    
-    // Calculate CGPA with the adjusted values
-    const calculatedCGPA = ((adjustedPrevCGPA * prevCredits) + (gpa * currentCredits)) / (prevCredits + currentCredits);
-    
-    setCgpa(calculatedCGPA);
   };
 
   const resetCalculator = () => {
