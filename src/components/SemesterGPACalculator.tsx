@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -208,6 +209,7 @@ const SemesterGPACalculator = () => {
       return;
     }
     
+    // Separate courses into improved D courses, repeated F courses, and regular courses
     const improvedCourses = validCourses.filter(course => 
       course.isImproved && course.previousGrade === "D"
     );
@@ -218,15 +220,19 @@ const SemesterGPACalculator = () => {
     
     const regularCourses = validCourses.filter(course => !course.isImproved);
     
+    // Calculate quality points and credits for regular courses
     const regularCredits = regularCourses.reduce((sum, course) => sum + course.credit, 0);
     const regularPoints = regularCourses.reduce((sum, course) => sum + (course.credit * course.gradePoints), 0);
     
+    // Start with previous CGPA and credits
     let totalQualityPoints = prevCGPA * prevCredits;
     let totalCredits = prevCredits;
     
+    // Add regular courses contribution
     totalQualityPoints += regularPoints;
     totalCredits += regularCredits;
     
+    // Handle improved courses (D grades) - Only add the improvement difference
     if (improvedCourses.length > 0) {
       improvedCourses.forEach(course => {
         const oldPoints = gradePoints["D"];
@@ -234,12 +240,15 @@ const SemesterGPACalculator = () => {
         const pointsDifference = newPoints - oldPoints;
         
         totalQualityPoints += (pointsDifference * course.credit);
+        // No need to add credits for improved courses as they were already counted
       });
     }
     
+    // Handle repeated courses (F grades) - Add the full points but don't add credits
     if (repeatedCourses.length > 0) {
       repeatedCourses.forEach(course => {
         totalQualityPoints += (course.gradePoints * course.credit);
+        // No need to add credits for repeated courses as they were already counted
       });
     }
     
