@@ -50,9 +50,7 @@ const SemesterGPACalculator = () => {
   ]);
   
   const [gpa, setGpa] = useState<number | null>(null);
-  const [nextId, setNextId] = useState(7); // Track the next available ID
-  
-  // State for CGPA calculation - show it by default
+  const [nextId, setNextId] = useState(7);
   const [previousCGPA, setPreviousCGPA] = useState<string>("");
   const [previousCreditHours, setPreviousCreditHours] = useState<string>("");
   const [cgpa, setCgpa] = useState<number | null>(null);
@@ -101,10 +99,9 @@ const SemesterGPACalculator = () => {
             return { 
               ...course, 
               isImproved: true, 
-              previousGrade: course.previousGrade || "D" // Default to D for improvement
+              previousGrade: course.previousGrade || "D"
             };
           } else {
-            // Turn off improvement
             return { 
               ...course, 
               isImproved: false, 
@@ -118,7 +115,6 @@ const SemesterGPACalculator = () => {
   };
 
   const isImprovementAllowed = (grade: string) => {
-    // We allow improvement for any grade
     return grade !== "" && grade !== "none";
   };
 
@@ -142,7 +138,6 @@ const SemesterGPACalculator = () => {
   };
 
   const removeCourse = (id: number) => {
-    // Prevent removing if only one course left
     if (courses.length <= 1) {
       toast({
         title: "Cannot Remove",
@@ -160,12 +155,10 @@ const SemesterGPACalculator = () => {
     });
   };
 
-  // Auto-calculate GPA whenever courses change
   useEffect(() => {
     calculateGPA();
   }, [courses]);
 
-  // Auto-calculate CGPA whenever GPA or previous values change
   useEffect(() => {
     if (gpa !== null && previousCGPA && previousCreditHours) {
       calculateCGPA();
@@ -175,7 +168,6 @@ const SemesterGPACalculator = () => {
   }, [gpa, previousCGPA, previousCreditHours, courses]);
 
   const calculateGPA = () => {
-    // Filter out courses with no grades (they don't count)
     const validCourses = courses.filter(course => course.grade !== "" && course.grade !== "none");
     
     if (validCourses.length === 0) {
@@ -183,7 +175,6 @@ const SemesterGPACalculator = () => {
       return;
     }
 
-    // Calculate GPA: sum of (credit * grade points) / total credits
     const totalCredits = validCourses.reduce((sum, course) => sum + course.credit, 0);
     const weightedGradePoints = validCourses.reduce((sum, course) => sum + (course.credit * course.gradePoints), 0);
     
@@ -197,13 +188,11 @@ const SemesterGPACalculator = () => {
   };
 
   const calculateCGPA = () => {
-    // Validate inputs
     if (!previousCGPA || !previousCreditHours || isNaN(parseFloat(previousCGPA)) || isNaN(parseFloat(previousCreditHours))) {
       setCgpa(null);
       return;
     }
 
-    // Make sure semester GPA is calculated first
     if (gpa === null) {
       setCgpa(null);
       return;
@@ -212,57 +201,50 @@ const SemesterGPACalculator = () => {
     const prevCGPA = parseFloat(previousCGPA);
     const prevCredits = parseFloat(previousCreditHours);
     
-    // Get current semester credits (only for courses with grades)
     const validCourses = courses.filter(course => course.grade !== "" && course.grade !== "none");
-    const currentCredits = validCourses.reduce((sum, course) => sum + course.credit, 0);
     
-    // If no valid courses with grades, return
-    if (currentCredits === 0) {
+    if (validCourses.length === 0) {
       setCgpa(null);
       return;
     }
     
-    // Get all improved courses with their credits and grade impact
-    const improvedCourses = validCourses.filter(course => course.isImproved && course.previousGrade);
+    const improvedCourses = validCourses.filter(course => 
+      course.isImproved && course.previousGrade === "D"
+    );
     
-    // Calculate CGPA accounting for improved courses
+    const repeatedCourses = validCourses.filter(course =>
+      course.isImproved && course.previousGrade === "F"
+    );
+    
+    const regularCourses = validCourses.filter(course => !course.isImproved);
+    
+    const regularCredits = regularCourses.reduce((sum, course) => sum + course.credit, 0);
+    const regularPoints = regularCourses.reduce((sum, course) => sum + (course.credit * course.gradePoints), 0);
+    
+    let totalQualityPoints = prevCGPA * prevCredits;
+    let totalCredits = prevCredits;
+    
+    totalQualityPoints += regularPoints;
+    totalCredits += regularCredits;
+    
     if (improvedCourses.length > 0) {
-      // For improved courses, we need to:
-      // 1. Calculate the difference between new and old grade points
-      // 2. Multiply by credits to get total grade point change
-      // 3. Add this to the previous total quality points (prevCGPA * prevCredits)
-      
-      let totalQualityPoints = prevCGPA * prevCredits;
-      
-      // For each improved course, adjust the quality points
       improvedCourses.forEach(course => {
-        const oldPoints = gradePoints[course.previousGrade] || 0;
+        const oldPoints = gradePoints["D"];
         const newPoints = course.gradePoints;
         const pointsDifference = newPoints - oldPoints;
         
-        // Add the improvement to total quality points
         totalQualityPoints += (pointsDifference * course.credit);
       });
-      
-      // Calculate current semester contribution (excluding improved courses)
-      const regularCourses = validCourses.filter(course => !course.isImproved);
-      const regularCredits = regularCourses.reduce((sum, course) => sum + course.credit, 0);
-      const regularPoints = regularCourses.reduce((sum, course) => sum + (course.credit * course.gradePoints), 0);
-      
-      // Add regular course points to total quality points
-      totalQualityPoints += regularPoints;
-      
-      // Calculate final CGPA
-      // Note: we don't add improved course credits again since they're already counted in prevCredits
-      const totalCredits = prevCredits + regularCredits;
-      
-      const calculatedCGPA = totalQualityPoints / totalCredits;
-      setCgpa(calculatedCGPA);
-    } else {
-      // No improved courses, use standard calculation
-      const calculatedCGPA = ((prevCGPA * prevCredits) + (gpa * currentCredits)) / (prevCredits + currentCredits);
-      setCgpa(calculatedCGPA);
     }
+    
+    if (repeatedCourses.length > 0) {
+      repeatedCourses.forEach(course => {
+        totalQualityPoints += (course.gradePoints * course.credit);
+      });
+    }
+    
+    const calculatedCGPA = totalQualityPoints / totalCredits;
+    setCgpa(calculatedCGPA);
   };
 
   const resetCalculator = () => {
@@ -273,7 +255,6 @@ const SemesterGPACalculator = () => {
     setPreviousCreditHours("");
   };
 
-  // Mobile view version of the course table
   const renderMobileCourseView = () => {
     return (
       <div className="space-y-4">
@@ -381,7 +362,6 @@ const SemesterGPACalculator = () => {
         <CardDescription className="text-green-100">Enter your course grades to automatically calculate your GPA and CGPA</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 pt-6">
-        {/* CGPA Calculator Section - Shown by default */}
         <div className="p-5 border border-green-200 rounded-lg bg-green-50">
           <h3 className="text-lg font-semibold text-green-800 mb-3">Cumulative GPA Calculator</h3>
           <p className="text-sm text-green-700 mb-4">
@@ -418,7 +398,6 @@ const SemesterGPACalculator = () => {
           </div>
         </div>
 
-        {/* Mobile or Desktop view based on screen size */}
         {isMobile ? (
           renderMobileCourseView()
         ) : (
@@ -546,7 +525,6 @@ const SemesterGPACalculator = () => {
           </Button>
         </div>
         
-        {/* Combined Results Section */}
         <div className="mt-6 p-6 bg-green-100 border border-green-200 rounded-md grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="p-4 bg-white border border-green-300 rounded-md shadow-sm">
             <h3 className="text-lg font-semibold text-green-800 mb-1">Your Semester GPA</h3>
